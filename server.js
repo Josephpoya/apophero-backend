@@ -101,6 +101,15 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "🚀 Apophero Backend API is running successfully!",
+    version: "v1",
+    docs: "/health",
+    api_base: "/api/v1"
+  });
+});
 
 // ── API Routes ─────────────────────────────
 app.use('/api/v1/auth',        authRoutes);
