@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Apophero Health — Complete, convenient healthcare. Free evidence-based guides for weight loss, hormonal health, men's and women's wellness, and more.">
+  <title>Apophero Health — Complete, Convenient Healthcare</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Global CSS -->
+  <link rel="stylesheet" href="css/global.css">
+
+  <style>
+    /* Page transition */
+    #app {
+      animation: fadeIn .35s ease;
+    }
+    #app.transitioning {
+      opacity: 0;
+      transition: opacity .15s ease;
+    }
+
+    /* Loading screen */
+    #loader {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--sage);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1.5rem;
+      transition: opacity .4s ease;
+    }
+    #loader.hidden { opacity: 0; pointer-events: none; }
+    .loader-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem; font-weight: 700; color: var(--black);
+    }
+    .loader-logo span { color: var(--teal); }
+    .loader-bar {
+      width: 200px; height: 3px;
+      background: var(--border); border-radius: 2px; overflow: hidden;
+    }
+    .loader-fill {
+      height: 100%; background: var(--teal); border-radius: 2px;
+      animation: loadFill .9s cubic-bezier(.4,0,.2,1) forwards;
+    }
+    @keyframes loadFill {
+      from { width: 0; }
+      to   { width: 100%; }
+    }
+    .loader-tagline { font-size: .8rem; color: var(--warm-brown); letter-spacing: .5px; }
+  </style>
+</head>
+<body>
+
+  <!-- LOADER -->
+  <div id="loader">
+    <div class="loader-logo">Apophero <span>Health</span></div>
+    <div class="loader-bar"><div class="loader-fill"></div></div>
+    <div class="loader-tagline">Complete, Convenient Healthcare</div>
+  </div>
+
+  <!-- SHELL: nav + content + footer -->
+  <div id="shell">
+    <!-- Nav injected by JS -->
+
+    <!-- PAGE CONTENT -->
+    <main id="app"></main>
+
+    <!-- Footer injected per page -->
+  </div>
+
+  <!-- JS: load order matters -->
+  <script src="js/global.js"></script>
+  <script src="js/home.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/pages.js"></script>
+
+  <script>
+    /* ── ROUTER ── */
+    function getPage() {
+      return window.location.hash.replace('#','') || 'home';
+    }
+
+    function navigate(page, param) {
+      if (page === window._currentPage && !param) return;
+      window._currentPage = page;
+
+      // smooth transition
+      const app = document.getElementById('app');
+      app.classList.add('transitioning');
+
+      setTimeout(() => {
+        window.location.hash = page;
+        window.scrollTo({ top: 0 });
+
+        // render page
+        if (pages[page]) {
+          app.innerHTML = pages[page](param) + renderFooter();
+        } else {
+          app.innerHTML = `<div style="padding:calc(var(--nav-h) + 5rem) 5% 6rem;text-align:center">
+            <div style="font-size:4rem;margin-bottom:1rem">404</div>
+            <h2 style="font-family:var(--font-display);font-size:2rem;margin-bottom:1rem">Page Not Found</h2>
+            <a class="btn btn-primary" onclick="navigate('home')">Go Home</a>
+          </div>`;
+        }
+
+        app.classList.remove('transitioning');
+        initReveal();
+
+        // update nav active states
+        document.querySelectorAll('.nav-links a, .mobile-menu a').forEach(a => {
+          const href = a.getAttribute('href')?.replace('#','') || '';
+          a.classList.toggle('active', href === page);
+        });
+      }, 150);
+    }
+
+    /* ── HASH ROUTING ── */
+    window.addEventListener('hashchange', () => {
+      const page = getPage();
+      if (page !== window._currentPage) navigate(page);
+    });
+
+    /* ── BOOT ── */
+    window.addEventListener('load', () => {
+      // hide loader
+      setTimeout(() => {
+        document.getElementById('loader').classList.add('hidden');
+        setTimeout(() => document.getElementById('loader').remove(), 400);
+      }, 1000);
+
+      // load initial page
+      const page = getPage();
+      window._currentPage = page;
+      const app = document.getElementById('app');
+
+      if (pages[page]) {
+        app.innerHTML = pages[page]() + renderFooter();
+      } else {
+        app.innerHTML = pages['home']() + renderFooter();
+      }
+
+      initReveal();
+      initNav();
+    });
+  </script>
+</body>
+</html>
