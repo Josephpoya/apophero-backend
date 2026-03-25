@@ -5,6 +5,19 @@
 
 require('dotenv').config();
 
+// === GLOBAL ERROR CATCHERS FOR STARTUP CRASHES ===
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION (startup crash):', err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION (startup crash):', reason);
+  console.error(reason.stack || reason);
+  process.exit(1);
+});
+
 const express        = require('express');
 const mongoose       = require('mongoose');
 const helmet         = require('helmet');

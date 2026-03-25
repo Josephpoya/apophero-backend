@@ -68,18 +68,12 @@ exports.unsubscribe = asyncHandler(async (req, res) => {
 
 /* ────────────── BOOKINGS ───────────────── */
 
-/* ────────────── BOOKINGS ───────────────── */
-
-// Temporarily disabled for debugging
-/*
 exports.createBooking = asyncHandler(async (req, res) => {
-  ... entire function ...
-});
-*/
-
-// Keep only this for now (empty placeholder)
-exports.createBooking = asyncHandler(async (req, res) => {
-  throw new Error("createBooking is under maintenance");
+  console.log("📥 Booking route hit - test version");
+  sendSuccess(res, {
+    statusCode: 201,
+    message: 'Booking test mode - working',
+  });
 });
 
 /* ────────────── BLOG ───────────────────── */
