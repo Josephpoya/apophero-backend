@@ -2,6 +2,7 @@
 // ═══════════════════════════════════════════
 //  APOPHERO HEALTH — SERVER ENTRY POINT
 // ═══════════════════════════════════════════
+
 require('dotenv').config();
 
 const express        = require('express');
@@ -29,9 +30,6 @@ const newsletterRoutes   = require('./routes/newsletterRoutes');
 const bookingRoutes      = require('./routes/bookingRoutes');
 const blogRoutes         = require('./routes/blogRoutes');
 const adminRoutes        = require('./routes/adminRoutes');
-
-// ── Connect Database ───────────────────────
-connectDB();
 
 const app = express();
 
@@ -64,9 +62,9 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 
 // Data sanitization
-app.use(mongoSanitize());   // NoSQL injection
-app.use(xssClean());        // XSS attacks
-app.use(hpp());             // HTTP parameter pollution
+app.use(mongoSanitize());
+app.use(xssClean());
+app.use(hpp());
 
 // Compression & logging
 app.use(compression());
@@ -91,7 +89,7 @@ app.use('/api', globalLimiter);
 // ── Static files ───────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ── Health check ───────────────────────────
+// ── Health & Root check ───────────────────────────
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -101,6 +99,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
@@ -131,27 +130,53 @@ app.use((req, res) => {
 // ── Global error handler ───────────────────
 app.use(errorHandler);
 
-// ── Start server ───────────────────────────
+// ── Connect Database & Start Server ───────────────────────
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  logger.info(`🚀 Apophero Health API running on port ${PORT} [${process.env.NODE_ENV}]`);
-});
 
-// ── Graceful shutdown ─────────────────────
-const shutdown = (signal) => {
-  logger.info(`${signal} received — shutting down gracefully…`);
-  server.close(() => {
-    mongoose.connection.close(false, () => {
-      logger.info('MongoDB connection closed.');
-      process.exit(0);
-    });
+connectDB().then(() => {
+  const server = app.listen(PORT, () => {
+    logger.info(`🚀 Apophero Health API running on port ${PORT} [${process.env.NODE_ENV}]`);
   });
-};
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT',  () => shutdown('SIGINT'));
-process.on('unhandledRejection', (err) => {
-  logger.error(`Unhandled Rejection: ${err.message}`);
-  shutdown('unhandledRejection');
+
+  // ── Graceful shutdown ─────────────────────
+  const shutdown = async (signal) => {
+    logger.info(`${signal} received — shutting down gracefully…`);
+
+    try {
+      await new Promise((resolve) => {
+        server.close((err) => {
+          if (err) logger.error('Error closing server:', err);
+          resolve();
+        });
+      });
+
+      if (mongoose.connection.readyState !== 0) {
+        await mongoose.connection.close(false);
+        logger.info('MongoDB connection closed.');
+      }
+
+      logger.info('Graceful shutdown completed.');
+      process.exit(0);
+    } catch (err) {
+      logger.error(`Error during shutdown: ${err.message}`);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT',  () => shutdown('SIGINT'));
+  process.on('unhandledRejection', (err) => {
+    logger.error(`Unhandled Rejection: ${err.message}`);
+    shutdown('unhandledRejection');
+  });
+  process.on('uncaughtException', (err) => {
+    logger.error(`Uncaught Exception: ${err.message}`);
+    shutdown('uncaughtException');
+  });
+
+}).catch((err) => {
+  logger.error(`Failed to start application: ${err.message}`);
+  process.exit(1);
 });
 
 module.exports = app;

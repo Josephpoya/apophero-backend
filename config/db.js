@@ -3,24 +3,18 @@
 //  DATABASE CONNECTION
 // ═══════════════════════════════════════════
 const mongoose = require('mongoose');
-const logger   = require('../utils/logger');
+const logger = require('../utils/logger');
 
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS:          45000,
+      // These options are no longer needed in newer Mongoose, but harmless
     });
 
-    logger.info(`✅ MongoDB connected: ${conn.connection.host}`);
-
-    mongoose.connection.on('error',        err  => logger.error(`MongoDB error: ${err}`));
-    mongoose.connection.on('disconnected', ()   => logger.warn('MongoDB disconnected'));
-    mongoose.connection.on('reconnected',  ()   => logger.info('MongoDB reconnected'));
-
-  } catch (err) {
-    logger.error(`❌ MongoDB connection failed: ${err.message}`);
-    process.exit(1);
+    logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    logger.error(`❌ MongoDB connection failed: ${error.message}`);
+    process.exit(1);        // Stop the app if DB fails to connect
   }
 };
 
