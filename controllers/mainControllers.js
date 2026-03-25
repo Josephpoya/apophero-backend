@@ -69,48 +69,71 @@ exports.unsubscribe = asyncHandler(async (req, res) => {
 /* ────────────── BOOKINGS ───────────────── */
 
 exports.createBooking = asyncHandler(async (req, res) => {
+  console.log("📥 1. [BOOKING] Route hit - Raw body received:", req.body);
+
   const { firstName, lastName, email, phone, sessionType, concern, notes } = req.body;
 
-  const bookingRef = generateRef('APH');
+  try {
+    const bookingRef = generateRef('APH');
 
-  const booking = await Booking.create({
-    bookingRef, firstName, lastName, email,
-    phone, sessionType, concern, notes,
-    user: req.user?._id || null,
-    ip:   req.ip
-  });
+    console.log("📝 2. [BOOKING] Creating booking with ref:", bookingRef);
 
-  // Confirm to user
-  sendEmail({ to: email, templateName: 'bookingConfirm',
-    templateData: { name: firstName, sessionType, concern, bookingRef } });
+    const booking = await Booking.create({
+      bookingRef,
+      firstName,
+      lastName,
+      email,
+      phone,
+      sessionType,
+      concern,
+      notes: notes || "",           // prevent undefined
+      user: req.user?._id || null,
+      ip:   req.ip
+    });
 
-  // Notify admin
-  sendEmail({ to: process.env.FROM_EMAIL, templateName: 'bookingAdmin',
-    templateData: { name: `${firstName} ${lastName}`, email, phone, sessionType, concern, notes, bookingRef } });
+    console.log("✅ 3. [BOOKING] SUCCESS! Saved with ID:", booking._id);
 
-  // Also auto-subscribe to newsletter
-  Newsletter.findOneAndUpdate({ email },
-    { email, firstName, isActive: true, source: 'booking' },
-    { upsert: true, setDefaultsOnInsert: true }
-  ).catch(() => {});
+    // Confirm to user
+    sendEmail({
+      to: email,
+      templateName: 'bookingConfirm',
+      templateData: { name: firstName, sessionType, concern, bookingRef }
+    }).catch(err => console.error("Email to user failed:", err));
 
-  sendSuccess(res, {
-    statusCode: 201,
-    message: 'Booking received! We will confirm within 24 hours.',
-    data: { bookingRef, id: booking._id }
-  });
-});
+    // Notify admin
+    sendEmail({
+      to: process.env.FROM_EMAIL,
+      templateName: 'bookingAdmin',
+      templateData: { 
+        name: `${firstName} ${lastName}`, 
+        email, phone, sessionType, concern, notes, bookingRef 
+      }
+    }).catch(err => console.error("Admin email failed:", err));
 
-exports.getMyBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ email: req.user.email })
-    .sort('-createdAt').lean();
-  sendSuccess(res, { message: 'Bookings fetched', data: { bookings } });
-});
+    // Newsletter (don't let it break the booking)
+    Newsletter.findOneAndUpdate(
+      { email },
+      { email, firstName, isActive: true, source: 'booking' },
+      { upsert: true, setDefaultsOnInsert: true }
+    ).catch(() => {});
 
-exports.getBookingByRef = asyncHandler(async (req, res) => {
-  const booking = await Booking.findOne({ bookingRef: req.params.ref }).lean();
-  if (!booking) throw new AppError('Booking not found', 404);
-  sendSuccess(res, { message: 'Booking fetched', data: { booking } });
+    sendSuccess(res, {
+      statusCode: 201,
+      message: 'Booking received! We will confirm within 24 hours.',
+      data: { bookingRef, id: booking._id }
+    });
+
+  } catch (error) {
+    console.error("❌ 4. [BOOKING] FAILED:");
+    console.error("Error Name:", error.name);
+    console.error("Error Message:", error.message);
+    
+    if (error.name === 'ValidationError') {
+      console.error("Validation Errors:", error.errors);
+    }
+    
+    throw error;   // Let asyncHandler send the error response
+  }
 });
 
 /* ────────────── BLOG ───────────────────── */
