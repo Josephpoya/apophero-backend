@@ -1,0 +1,148 @@
+'use strict';
+// ═══════════════════════════════════════════
+//  APOPHERO HEALTH — SERVER ENTRY POINT
+// ═══════════════════════════════════════════
+require('dotenv').config();
+
+const express        = require('express');
+const mongoose       = require('mongoose');
+const helmet         = require('helmet');
+const cors           = require('cors');
+const morgan         = require('morgan');
+const rateLimit      = require('express-rate-limit');
+const mongoSanitize  = require('express-mongo-sanitize');
+const xssClean       = require('xss-clean');
+const hpp            = require('hpp');
+const compression    = require('compression');
+const cookieParser   = require('cookie-parser');
+const path           = require('path');
+
+const connectDB      = require('./config/db');
+const logger         = require('./utils/logger');
+const errorHandler   = require('./middleware/errorHandler');
+
+// ── Route imports ──────────────────────────
+const authRoutes         = require('./routes/authRoutes');
+const userRoutes         = require('./routes/userRoutes');
+const contactRoutes      = require('./routes/contactRoutes');
+const newsletterRoutes   = require('./routes/newsletterRoutes');
+const bookingRoutes      = require('./routes/bookingRoutes');
+const blogRoutes         = require('./routes/blogRoutes');
+const adminRoutes        = require('./routes/adminRoutes');
+
+// ── Connect Database ───────────────────────
+connectDB();
+
+const app = express();
+
+// ── Security Middleware ────────────────────
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// CORS
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:3000',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500'
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS policy: origin ${origin} not allowed`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Body parsers
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(cookieParser());
+
+// Data sanitization
+app.use(mongoSanitize());   // NoSQL injection
+app.use(xssClean());        // XSS attacks
+app.use(hpp());             // HTTP parameter pollution
+
+// Compression & logging
+app.use(compression());
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined', {
+    stream: { write: msg => logger.http(msg.trim()) }
+  }));
+}
+
+// ── Global Rate Limiter ────────────────────
+const globalLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max:      parseInt(process.env.RATE_LIMIT_MAX)        || 100,
+  message:  { success: false, message: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders:   false
+});
+app.use('/api', globalLimiter);
+
+// ── Static files ───────────────────────────
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ── Health check ───────────────────────────
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    status:  'healthy',
+    env:     process.env.NODE_ENV,
+    uptime:  Math.floor(process.uptime()) + 's',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ── API Routes ─────────────────────────────
+app.use('/api/v1/auth',        authRoutes);
+app.use('/api/v1/users',       userRoutes);
+app.use('/api/v1/contact',     contactRoutes);
+app.use('/api/v1/newsletter',  newsletterRoutes);
+app.use('/api/v1/bookings',    bookingRoutes);
+app.use('/api/v1/blog',        blogRoutes);
+app.use('/api/v1/admin',       adminRoutes);
+
+// ── 404 handler ────────────────────────────
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`
+  });
+});
+
+// ── Global error handler ───────────────────
+app.use(errorHandler);
+
+// ── Start server ───────────────────────────
+const PORT = process.env.PORT || 5000;
+const server = app.listen(PORT, () => {
+  logger.info(`🚀 Apophero Health API running on port ${PORT} [${process.env.NODE_ENV}]`);
+});
+
+// ── Graceful shutdown ─────────────────────
+const shutdown = (signal) => {
+  logger.info(`${signal} received — shutting down gracefully…`);
+  server.close(() => {
+    mongoose.connection.close(false, () => {
+      logger.info('MongoDB connection closed.');
+      process.exit(0);
+    });
+  });
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+process.on('unhandledRejection', (err) => {
+  logger.error(`Unhandled Rejection: ${err.message}`);
+  shutdown('unhandledRejection');
+});
+
+module.exports = app;
