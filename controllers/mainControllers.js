@@ -68,72 +68,18 @@ exports.unsubscribe = asyncHandler(async (req, res) => {
 
 /* ────────────── BOOKINGS ───────────────── */
 
+/* ────────────── BOOKINGS ───────────────── */
+
+// Temporarily disabled for debugging
+/*
 exports.createBooking = asyncHandler(async (req, res) => {
-  console.log("📥 1. [BOOKING] Route hit - Raw body received:", req.body);
+  ... entire function ...
+});
+*/
 
-  const { firstName, lastName, email, phone, sessionType, concern, notes } = req.body;
-
-  try {
-    const bookingRef = generateRef('APH');
-
-    console.log("📝 2. [BOOKING] Creating booking with ref:", bookingRef);
-
-    const booking = await Booking.create({
-      bookingRef,
-      firstName,
-      lastName,
-      email,
-      phone,
-      sessionType,
-      concern,
-      notes: notes || "",           // prevent undefined
-      user: req.user?._id || null,
-      ip:   req.ip
-    });
-
-    console.log("✅ 3. [BOOKING] SUCCESS! Saved with ID:", booking._id);
-
-    // Confirm to user
-    sendEmail({
-      to: email,
-      templateName: 'bookingConfirm',
-      templateData: { name: firstName, sessionType, concern, bookingRef }
-    }).catch(err => console.error("Email to user failed:", err));
-
-    // Notify admin
-    sendEmail({
-      to: process.env.FROM_EMAIL,
-      templateName: 'bookingAdmin',
-      templateData: { 
-        name: `${firstName} ${lastName}`, 
-        email, phone, sessionType, concern, notes, bookingRef 
-      }
-    }).catch(err => console.error("Admin email failed:", err));
-
-    // Newsletter (don't let it break the booking)
-    Newsletter.findOneAndUpdate(
-      { email },
-      { email, firstName, isActive: true, source: 'booking' },
-      { upsert: true, setDefaultsOnInsert: true }
-    ).catch(() => {});
-
-    sendSuccess(res, {
-      statusCode: 201,
-      message: 'Booking received! We will confirm within 24 hours.',
-      data: { bookingRef, id: booking._id }
-    });
-
-  } catch (error) {
-    console.error("❌ 4. [BOOKING] FAILED:");
-    console.error("Error Name:", error.name);
-    console.error("Error Message:", error.message);
-    
-    if (error.name === 'ValidationError') {
-      console.error("Validation Errors:", error.errors);
-    }
-    
-    throw error;   // Let asyncHandler send the error response
-  }
+// Keep only this for now (empty placeholder)
+exports.createBooking = asyncHandler(async (req, res) => {
+  throw new Error("createBooking is under maintenance");
 });
 
 /* ────────────── BLOG ───────────────────── */
