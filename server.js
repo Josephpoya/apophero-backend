@@ -56,9 +56,8 @@ app.use(helmet({
 // CORS Configuration
 // ── CORS Configuration ────────────────────
 const allowedOrigins = [
-  'https://apophero-frontend.vercel.app',           // Main production
-  'https://apophero-frontend-cftjb6xz-josephpoyas-projects.vercel.app',  // Current preview
-  process.env.CLIENT_URL,                           // From Render env
+  process.env.CLIENT_URL,
+  'https://apophero-frontend.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
   'http://127.0.0.1:5173'
@@ -66,15 +65,19 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) return cb(null, true);
+
+    // Allow main production and all Vercel preview URLs
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       return cb(null, true);
     }
+
     console.log(`❌ CORS blocked origin: ${origin}`);
     cb(new Error(`CORS policy: origin ${origin} not allowed`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Body parsers
