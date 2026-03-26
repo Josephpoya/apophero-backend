@@ -1,9 +1,9 @@
 'use strict';
+const mongoose = require('mongoose');
+
 // ═══════════════════════════════════════════
 //  CONTACT MODEL
 // ═══════════════════════════════════════════
-const mongoose = require('mongoose');
-
 const ContactSchema = new mongoose.Schema({
   firstName: { type: String, required: true, trim: true, maxlength: 50 },
   lastName:  { type: String, required: true, trim: true, maxlength: 50 },
@@ -33,7 +33,7 @@ const Contact = mongoose.model('Contact', ContactSchema);
 //  NEWSLETTER MODEL
 // ═══════════════════════════════════════════
 const NewsletterSchema = new mongoose.Schema({
-  email:     { type: String, required: true, unique: true, lowercase: true, trim: true },
+  email:     { type: String, required: true, lowercase: true, trim: true },
   firstName: { type: String, trim: true, default: '' },
   isActive:  { type: Boolean, default: true },
   unsubscribeToken: { type: String },
@@ -41,10 +41,10 @@ const NewsletterSchema = new mongoose.Schema({
   tags:      [{ type: String }]
 }, { timestamps: true });
 
+// Only define index once — removed duplicate unique:true from field definition
 NewsletterSchema.index({ email: 1 }, { unique: true });
 NewsletterSchema.index({ isActive: 1 });
 
-// Generate unsubscribe token before save
 NewsletterSchema.pre('save', function(next) {
   if (this.isNew) {
     const crypto = require('crypto');
@@ -59,7 +59,7 @@ const Newsletter = mongoose.model('Newsletter', NewsletterSchema);
 //  BOOKING MODEL
 // ═══════════════════════════════════════════
 const BookingSchema = new mongoose.Schema({
-  bookingRef:  { type: String, required: true, unique: true },
+  bookingRef:  { type: String, required: true },
   firstName:   { type: String, required: true, trim: true },
   lastName:    { type: String, required: true, trim: true },
   email:       { type: String, required: true, lowercase: true, trim: true },
@@ -77,7 +77,7 @@ const BookingSchema = new mongoose.Schema({
       'pregnancy','mental-health','general-wellness','multiple'
     ]
   },
-  notes:  { type: String, trim: true, maxlength: 1000, default: '' },
+  notes:       { type: String, trim: true, maxlength: 1000, default: '' },
   status: {
     type: String,
     enum: ['pending','confirmed','scheduled','completed','cancelled'],
@@ -91,9 +91,10 @@ const BookingSchema = new mongoose.Schema({
   ip:           { type: String }
 }, { timestamps: true });
 
+// Only define bookingRef index once
+BookingSchema.index({ bookingRef: 1 }, { unique: true });
 BookingSchema.index({ email: 1 });
 BookingSchema.index({ status: 1 });
-BookingSchema.index({ bookingRef: 1 }, { unique: true });
 BookingSchema.index({ createdAt: -1 });
 
 BookingSchema.virtual('fullName').get(function() {
@@ -107,7 +108,7 @@ const Booking = mongoose.model('Booking', BookingSchema);
 // ═══════════════════════════════════════════
 const BlogSchema = new mongoose.Schema({
   title:    { type: String, required: true, trim: true, maxlength: 200 },
-  slug:     { type: String, unique: true, lowercase: true },
+  slug:     { type: String, lowercase: true },
   excerpt:  { type: String, required: true, trim: true, maxlength: 300 },
   content:  { type: String, required: true },
   coverImage: { type: String, default: null },
@@ -139,28 +140,25 @@ const BlogSchema = new mongoose.Schema({
   metaDesc:     { type: String, maxlength: 160 }
 }, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
-BlogSchema.index({ slug: 1 }, { unique: true });
+// Only define slug index once
+BlogSchema.index({ slug: 1 }, { unique: true, sparse: true });
 BlogSchema.index({ status: 1, publishedAt: -1 });
 BlogSchema.index({ topic: 1 });
 BlogSchema.index({ featured: 1 });
 
-// Auto-generate slug
 BlogSchema.pre('save', async function(next) {
   if (!this.isModified('title')) return next();
   const slugify = require('slugify');
   let slug = slugify(this.title, { lower: true, strict: true });
-  // Ensure uniqueness
   const exists = await mongoose.model('Blog').findOne({ slug, _id: { $ne: this._id } });
   if (exists) slug += `-${Date.now()}`;
   this.slug = slug;
-  // Auto-set publishedAt
   if (this.status === 'published' && !this.publishedAt) {
     this.publishedAt = new Date();
   }
   next();
 });
 
-// Increment views
 BlogSchema.methods.incrementViews = async function() {
   this.views += 1;
   await this.save({ validateBeforeSave: false });

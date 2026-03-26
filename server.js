@@ -45,6 +45,7 @@ const blogRoutes         = require('./routes/blogRoutes');
 const adminRoutes        = require('./routes/adminRoutes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ── Security Middleware ────────────────────
 app.use(helmet({
