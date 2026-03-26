@@ -1,6 +1,6 @@
 'use strict';
 // ═══════════════════════════════════════════
-//  CONTACT CONTROLLER
+//  MAIN CONTROLLERS
 // ═══════════════════════════════════════════
 const { Contact, Newsletter, Booking, Blog } = require('../models/index');
 const AppError   = require('../utils/AppError');
@@ -17,11 +17,9 @@ exports.submitContact = asyncHandler(async (req, res) => {
     ip: req.ip
   });
 
-  // Send confirmation to user (non-blocking)
   sendEmail({ to: email, templateName: 'contactConfirm',
     templateData: { name: firstName, subject } });
 
-  // Notify admin
   sendEmail({ to: process.env.FROM_EMAIL, templateName: 'contactAdmin',
     templateData: { name: `${firstName} ${lastName}`, email, subject, message } });
 
@@ -37,15 +35,13 @@ exports.submitContact = asyncHandler(async (req, res) => {
 exports.subscribe = asyncHandler(async (req, res) => {
   const { email, firstName = '' } = req.body;
 
-  // Upsert: re-activate if previously unsubscribed
   const sub = await Newsletter.findOneAndUpdate(
     { email },
     { email, firstName, isActive: true, source: 'website' },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
-  // Send welcome email (only for new subs)
-  if (sub.loginCount === 0 || sub.__v === 0) {
+  if (sub.__v === 0) {
     sendEmail({ to: email, templateName: 'newsletterWelcome', templateData: { email } });
   }
 
@@ -62,18 +58,55 @@ exports.unsubscribe = asyncHandler(async (req, res) => {
   );
 
   if (!sub) throw new AppError('Invalid unsubscribe token', 400);
-
   sendSuccess(res, { message: 'You have been unsubscribed successfully.' });
 });
 
 /* ────────────── BOOKINGS ───────────────── */
 
 exports.createBooking = asyncHandler(async (req, res) => {
-  console.log("📥 Booking route hit - test version");
+  const { firstName, lastName, email, phone, sessionType, concern, notes } = req.body;
+
+  const bookingRef = generateRef('APH');
+
+  const booking = await Booking.create({
+    bookingRef, firstName, lastName, email,
+    phone, sessionType, concern, notes,
+    user: req.user?._id || null,
+    ip:   req.ip
+  });
+
+  // Confirm to user
+  sendEmail({ to: email, templateName: 'bookingConfirm',
+    templateData: { name: firstName, sessionType, concern, bookingRef } });
+
+  // Notify admin
+  sendEmail({ to: process.env.FROM_EMAIL, templateName: 'bookingAdmin',
+    templateData: { name: `${firstName} ${lastName}`, email, phone, sessionType, concern, notes, bookingRef } });
+
+  // Auto-subscribe to newsletter
+  Newsletter.findOneAndUpdate(
+    { email },
+    { email, firstName, isActive: true, source: 'booking' },
+    { upsert: true, setDefaultsOnInsert: true }
+  ).catch(() => {});
+
   sendSuccess(res, {
     statusCode: 201,
-    message: 'Booking test mode - working',
+    message: 'Booking received! We will confirm within 24 hours.',
+    data: { bookingRef, id: booking._id }
   });
+});
+
+exports.getMyBookings = asyncHandler(async (req, res) => {
+  const bookings = await Booking.find({ email: req.user.email })
+    .sort('-createdAt').lean();
+  sendSuccess(res, { message: 'Bookings fetched', data: { bookings } });
+});
+
+exports.getBookingByRef = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({ bookingRef: req.params.ref }).lean();
+  if (!booking) throw new AppError('Booking not found', 404);
+  sendSuccess(res, { message: 'Booking fetched', data: { booking } });
 });
 
 /* ────────────── BLOG ───────────────────── */
@@ -97,7 +130,7 @@ exports.getPosts = asyncHandler(async (req, res) => {
     Blog.find(filter)
       .sort(status === 'published' ? '-publishedAt' : '-createdAt')
       .skip(skip).limit(limit)
-      .populate('author','name avatar')
+      .populate('author', 'name avatar')
       .lean(),
     Blog.countDocuments(filter)
   ]);
@@ -111,8 +144,11 @@ exports.getPosts = asyncHandler(async (req, res) => {
 
 exports.getPost = asyncHandler(async (req, res) => {
   const post = await Blog.findOne({
-    $or: [{ slug: req.params.slug }, { _id: req.params.slug.match(/^[0-9a-fA-F]{24}$/) ? req.params.slug : null }]
-  }).populate('author','name avatar');
+    $or: [
+      { slug: req.params.slug },
+      { _id: req.params.slug.match(/^[0-9a-fA-F]{24}$/) ? req.params.slug : null }
+    ]
+  }).populate('author', 'name avatar');
 
   if (!post) throw new AppError('Post not found', 404);
   if (post.status !== 'published' && req.user?.role !== 'admin') {
