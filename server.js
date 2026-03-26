@@ -53,16 +53,21 @@ app.use(helmet({
 }));
 
 // CORS
+// CORS Configuration
 const allowedOrigins = [
-  process.env.CLIENT_URL,
+  process.env.CLIENT_URL,                    // ← This will read from Render
+  'https://apophero-frontend.vercel.app',    // ← Fallback
   'http://localhost:3000',
-  'http://localhost:5500',
-  'http://127.0.0.1:5500'
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    if (!origin || allowedOrigins.includes(origin)) {
+      return cb(null, true);
+    }
+    console.log(`CORS blocked origin: ${origin}`);   // Helpful for debugging
     cb(new Error(`CORS policy: origin ${origin} not allowed`));
   },
   credentials: true,

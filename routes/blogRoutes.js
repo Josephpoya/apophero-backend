@@ -1,45 +1,49 @@
 'use strict';
-// ═══════════════════════════════════════════
-//  BLOG ROUTES  —  /api/v1/blog
-// ═══════════════════════════════════════════
-const express  = require('express');
-const router   = express.Router();
-const ctrl     = require('../controllers/mainControllers');
-const { protect, restrictTo } = require('../middleware/auth');
-const { blogRules, mongoIdRule, validate } = require('../middleware/validators');
-const upload   = require('../middleware/upload');
+const express = require('express');
+const router  = express.Router();
 
-// Inline optional auth
-const optionalAuth = async (req, res, next) => {
+// GET /api/v1/blog — public list of published posts
+router.get('/', async (req, res, next) => {
   try {
-    const jwt  = require('jsonwebtoken');
-    const User = require('../models/User');
-    let token;
+    const ctrl = require('../controllers/mainControllers');
+    await ctrl.getPosts(req, res, next);
+  } catch (err) { next(err); }
+});
 
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies?.token) {
-      token = req.cookies.token;
-    }
+// GET /api/v1/blog/:slug — single post
+router.get('/:slug', async (req, res, next) => {
+  try {
+    const ctrl = require('../controllers/mainControllers');
+    await ctrl.getPost(req, res, next);
+  } catch (err) { next(err); }
+});
 
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user    = await User.findById(decoded.id).select('-password');
-      if (user) req.user = user;
-    }
-  } catch (_) {}
-  next();
-};
+// POST /api/v1/blog — admin creates post
+router.post('/', async (req, res, next) => {
+  try {
+    const { protect, restrictTo } = require('../middleware/auth');
+    const { blogRules, validate } = require('../middleware/validators');
+    const ctrl = require('../controllers/mainControllers');
+    protect(req, res, () => restrictTo('admin')(req, res, () => ctrl.createPost(req, res, next)));
+  } catch (err) { next(err); }
+});
 
-// ── PUBLIC ────────────────────────────────
-router.get('/',      ctrl.getPosts);
-router.get('/:slug', optionalAuth, ctrl.getPost);
+// PATCH /api/v1/blog/:id — admin updates post
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { protect, restrictTo } = require('../middleware/auth');
+    const ctrl = require('../controllers/mainControllers');
+    protect(req, res, () => restrictTo('admin')(req, res, () => ctrl.updatePost(req, res, next)));
+  } catch (err) { next(err); }
+});
 
-// ── ADMIN ONLY ────────────────────────────
-router.use(protect, restrictTo('admin'));
-router.post('/',         blogRules, validate, ctrl.createPost);
-router.patch('/:id',     mongoIdRule('id'), validate, ctrl.updatePost);
-router.delete('/:id',    mongoIdRule('id'), validate, ctrl.deletePost);
-router.post('/:id/cover', upload.single('image'), ctrl.uploadCover);
+// DELETE /api/v1/blog/:id — admin deletes post
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { protect, restrictTo } = require('../middleware/auth');
+    const ctrl = require('../controllers/mainControllers');
+    protect(req, res, () => restrictTo('admin')(req, res, () => ctrl.deletePost(req, res, next)));
+  } catch (err) { next(err); }
+});
 
 module.exports = router;
