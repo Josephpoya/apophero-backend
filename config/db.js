@@ -8,7 +8,7 @@ const logger = require('../utils/logger');
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI, {
-      dbName: 'apophero',// These options are no longer needed in newer Mongoose, but harmless
+      // These options are no longer needed in newer Mongoose, but harmless
     });
 
     logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
