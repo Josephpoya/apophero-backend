@@ -1,32 +1,63 @@
 'use strict';
 // ═══════════════════════════════════════════
-//  FILE UPLOAD MIDDLEWARE — Multer
+//  UPLOAD MIDDLEWARE — Cloudinary + Multer
 // ═══════════════════════════════════════════
-const multer   = require('multer');
-const path     = require('path');
-const AppError = require('../utils/AppError');
+const multer    = require('multer');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('../config/cloudinary');
+const AppError  = require('../utils/AppError');
+const path      = require('path');
 
-const ALLOWED_TYPES = /jpeg|jpg|png|gif|webp/;
-const MAX_SIZE      = parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024; // 5MB
+// ── Allowed file types ─────────────────────
+const ALLOWED_IMAGES = /jpeg|jpg|png|gif|webp/;
+const ALLOWED_DOCS   = /pdf/;
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads'));
-  },
-  filename: (req, file, cb) => {
-    const ext  = path.extname(file.originalname).toLowerCase();
-    const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, name);
+// ── Image storage (for blog covers) ───────
+const imageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder:         'apophero/images',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    transformation: [{ quality: 'auto', fetch_format: 'auto' }]
   }
 });
 
-const fileFilter = (req, file, cb) => {
-  const extOk  = ALLOWED_TYPES.test(path.extname(file.originalname).toLowerCase());
-  const mimeOk = ALLOWED_TYPES.test(file.mimetype);
-  if (extOk && mimeOk) return cb(null, true);
-  cb(new AppError('Only image files (jpeg, jpg, png, gif, webp) are allowed.', 400), false);
+// ── PDF storage (for guides) ───────────────
+const pdfStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder:         'apophero/guides',
+    allowed_formats: ['pdf'],
+    resource_type:  'raw',
+    use_filename:   true,
+    unique_filename: false
+  }
+});
+
+// ── File filters ───────────────────────────
+const imageFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+  if (ALLOWED_IMAGES.test(ext)) return cb(null, true);
+  cb(new AppError('Only image files are allowed.', 400), false);
 };
 
-const upload = multer({ storage, fileFilter, limits: { fileSize: MAX_SIZE } });
+const pdfFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+  if (ALLOWED_DOCS.test(ext)) return cb(null, true);
+  cb(new AppError('Only PDF files are allowed.', 400), false);
+};
 
-module.exports = upload;
+// ── Exportable upload handlers ─────────────
+const uploadImage = multer({
+  storage:   imageStorage,
+  fileFilter: imageFilter,
+  limits:    { fileSize: 5 * 1024 * 1024 } // 5MB
+});
+
+const uploadPDF = multer({
+  storage:   pdfStorage,
+  fileFilter: pdfFilter,
+  limits:    { fileSize: 50 * 1024 * 1024 } // 50MB
+});
+
+module.exports = { uploadImage, uploadPDF };

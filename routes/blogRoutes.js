@@ -22,7 +22,6 @@ router.get('/:slug', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { protect, restrictTo } = require('../middleware/auth');
-    const { blogRules, validate } = require('../middleware/validators');
     const ctrl = require('../controllers/mainControllers');
     protect(req, res, () => restrictTo('admin')(req, res, () => ctrl.createPost(req, res, next)));
   } catch (err) { next(err); }
@@ -43,6 +42,24 @@ router.delete('/:id', async (req, res, next) => {
     const { protect, restrictTo } = require('../middleware/auth');
     const ctrl = require('../controllers/mainControllers');
     protect(req, res, () => restrictTo('admin')(req, res, () => ctrl.deletePost(req, res, next)));
+  } catch (err) { next(err); }
+});
+
+// POST /api/v1/blog/:id/cover — admin uploads cover image to Cloudinary
+router.post('/:id/cover', async (req, res, next) => {
+  try {
+    const { protect, restrictTo } = require('../middleware/auth');
+    const { uploadImage }         = require('../middleware/upload');
+    const ctrl                    = require('../controllers/mainControllers');
+
+    protect(req, res, () =>
+      restrictTo('admin')(req, res, () =>
+        uploadImage.single('image')(req, res, (err) => {
+          if (err) return next(err);
+          ctrl.uploadCover(req, res, next);
+        })
+      )
+    );
   } catch (err) { next(err); }
 });
 

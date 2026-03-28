@@ -51,5 +51,50 @@ router.delete('/newsletter/:id',   mongoIdRule('id'), validate, ctrl.deleteSubsc
 // ── BLOG (all statuses) ────────────────────
 // GET /api/v1/admin/blog
 router.get('/blog', ctrl.getAllPosts);
+const { uploadPDF } = require('../middleware/upload');
+const { asyncHandler, sendSuccess } = require('../utils/helpers');
+const cloudinary = require('../config/cloudinary');
 
+// POST /api/v1/admin/guides/upload — upload a PDF guide
+router.post('/guides/upload', uploadPDF.single('pdf'), asyncHandler(async (req, res) => {
+  if (!req.file) throw new AppError('No PDF file uploaded', 400);
+
+  sendSuccess(res, {
+    statusCode: 201,
+    message: 'Guide uploaded successfully',
+    data: {
+      url:      req.file.path,
+      publicId: req.file.filename,
+      name:     req.file.originalname
+    }
+  });
+}));
+
+// GET /api/v1/admin/guides — list all uploaded guides
+router.get('/guides', asyncHandler(async (req, res) => {
+  const result = await cloudinary.api.resources({
+    type:          'upload',
+    prefix:        'apophero/guides',
+    resource_type: 'raw',
+    max_results:   50
+  });
+
+  const guides = result.resources.map(r => ({
+    name:      r.public_id.replace('apophero/guides/', ''),
+    url:       r.secure_url,
+    size:      Math.round(r.bytes / 1024) + ' KB',
+    createdAt: r.created_at
+  }));
+
+  sendSuccess(res, { message: 'Guides fetched', data: { guides } });
+}));
+
+// DELETE /api/v1/admin/guides/:publicId — delete a guide
+router.delete('/guides/:publicId', asyncHandler(async (req, res) => {
+  await cloudinary.uploader.destroy(
+    `apophero/guides/${req.params.publicId}`,
+    { resource_type: 'raw' }
+  );
+  sendSuccess(res, { message: 'Guide deleted' });
+}));
 module.exports = router;
