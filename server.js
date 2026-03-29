@@ -70,7 +70,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use('/api/v1/downloads', downloadRoutes);
+
 
 // Body parsers
 app.use(express.json({ limit: '10kb' }));
@@ -134,6 +134,7 @@ app.use('/api/v1/newsletter',  newsletterRoutes);
 app.use('/api/v1/bookings',    bookingRoutes);
 app.use('/api/v1/blog',        blogRoutes);
 app.use('/api/v1/admin',       adminRoutes);
+app.use('/api/v1/downloads', downloadRoutes);
 
 // ── 404 handler ────────────────────────────
 app.use((req, res) => {
