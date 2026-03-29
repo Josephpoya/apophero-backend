@@ -6,7 +6,6 @@ const { Contact, Newsletter, Booking, Blog, Download } = require('../models/inde
 const AppError   = require('../utils/AppError');
 const { asyncHandler, sendSuccess, getPagination, buildMeta, generateRef } = require('../utils/helpers');
 const { sendEmail } = require('../utils/email');
-const { Contact, Newsletter, Booking, Blog, Download } = require('../models/index');
 
 /* ────────────── CONTACT ────────────────── */
 
