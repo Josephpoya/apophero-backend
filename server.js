@@ -43,6 +43,7 @@ const newsletterRoutes   = require('./routes/newsletterRoutes');
 const bookingRoutes      = require('./routes/bookingRoutes');
 const blogRoutes         = require('./routes/blogRoutes');
 const adminRoutes        = require('./routes/adminRoutes');
+const downloadRoutes = require('./routes/downloadRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -69,6 +70,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+app.use('/api/v1/downloads', downloadRoutes);
 
 // Body parsers
 app.use(express.json({ limit: '10kb' }));

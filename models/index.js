@@ -166,4 +166,29 @@ BlogSchema.methods.incrementViews = async function() {
 
 const Blog = mongoose.model('Blog', BlogSchema);
 
-module.exports = { Contact, Newsletter, Booking, Blog };
+// ═══════════════════════════════════════════
+//  DOWNLOAD MODEL
+// ═══════════════════════════════════════════
+const DownloadSchema = new mongoose.Schema({
+  guideId:    { type: String, required: true },
+  guideTitle: { type: String, required: true },
+  firstName:  { type: String, required: true, trim: true },
+  lastName:   { type: String, required: true, trim: true },
+  email:      { type: String, required: true, lowercase: true, trim: true },
+  phone:      { type: String, trim: true, default: '' },
+  ip:         { type: String },
+  userAgent:  { type: String },
+  source:     { type: String, default: 'website' }
+}, { timestamps: true });
+
+DownloadSchema.index({ guideId: 1 });
+DownloadSchema.index({ email: 1 });
+DownloadSchema.index({ createdAt: -1 });
+
+DownloadSchema.virtual('fullName').get(function() {
+  return `${this.firstName} ${this.lastName}`;
+});
+
+const Download = mongoose.model('Download', DownloadSchema);
+
+module.exports = { Contact, Newsletter, Booking, Blog, Download };

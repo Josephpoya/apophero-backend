@@ -6,6 +6,7 @@ const { Contact, Newsletter, Booking, Blog } = require('../models/index');
 const AppError   = require('../utils/AppError');
 const { asyncHandler, sendSuccess, getPagination, buildMeta, generateRef } = require('../utils/helpers');
 const { sendEmail } = require('../utils/email');
+const { Contact, Newsletter, Booking, Blog, Download } = require('../models/index');
 
 /* ────────────── CONTACT ────────────────── */
 
@@ -180,4 +181,114 @@ exports.uploadCover = asyncHandler(async (req, res) => {
     await Blog.findByIdAndUpdate(req.params.id, { coverImage: url });
   }
   sendSuccess(res, { message: 'Cover uploaded', data: { url } });
+});
+
+/* ────────────── DOWNLOADS ──────────────── */
+
+exports.trackDownload = asyncHandler(async (req, res) => {
+  const { guideId, guideTitle, firstName, lastName, email, phone } = req.body;
+
+  // Save download record
+  const download = await Download.create({
+    guideId, guideTitle,
+    firstName, lastName, email,
+    phone: phone || '',
+    ip:        req.ip,
+    userAgent: req.headers['user-agent']
+  });
+
+  // Auto-subscribe to newsletter
+  Newsletter.findOneAndUpdate(
+    { email },
+    { email, firstName, isActive: true, source: 'download' },
+    { upsert: true, setDefaultsOnInsert: true }
+  ).catch(() => {});
+
+  // Email notification to admin
+  sendEmail({
+    to: process.env.FROM_EMAIL,
+    subject: `📥 New Guide Download: ${guideTitle}`,
+    html: `
+      <!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#DEE3DF;padding:20px">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden">
+        <div style="background:#161919;padding:24px;text-align:center">
+          <span style="font-size:20px;font-weight:700;color:#fff">Apophero <span style="color:#09C8B8">Health</span></span>
+        </div>
+        <div style="padding:32px">
+          <h2 style="color:#161919;margin-bottom:16px">📥 New Guide Download</h2>
+          <div style="background:#e3f8f7;border-left:3px solid #09C8B8;padding:16px;border-radius:0 8px 8px 0;margin-bottom:20px">
+            <p style="margin:0;font-size:14px;color:#161919">
+              <strong>Guide:</strong> ${guideTitle}<br>
+              <strong>Name:</strong> ${firstName} ${lastName}<br>
+              <strong>Email:</strong> ${email}<br>
+              <strong>Phone:</strong> ${phone || 'Not provided'}<br>
+              <strong>Time:</strong> ${new Date().toLocaleString()}
+            </p>
+          </div>
+          <p style="font-size:13px;color:#848B8C">This person has been automatically added to your newsletter list.</p>
+        </div>
+      </div>
+      </body></html>
+    `
+  });
+
+  // Send guide link to user by email
+  sendEmail({
+    to: email,
+    subject: `Your free guide is ready — ${guideTitle}`,
+    html: `
+      <!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#DEE3DF;padding:20px">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden">
+        <div style="background:#161919;padding:24px;text-align:center">
+          <span style="font-size:20px;font-weight:700;color:#fff">Apophero <span style="color:#09C8B8">Health</span></span>
+        </div>
+        <div style="padding:32px">
+          <h2 style="color:#161919">Your guide is ready, ${firstName}! 🎉</h2>
+          <p style="color:#705C52;line-height:1.7">Thank you for downloading <strong>${guideTitle}</strong>. Click the button below to access your guide.</p>
+          <div style="background:#e3f8f7;border-left:3px solid #09C8B8;padding:14px 18px;border-radius:0 8px 8px 0;margin:20px 0">
+            <p style="margin:0;font-size:13px;color:#161919">💡 <strong>Tip:</strong> Save this email so you can access your guide anytime.</p>
+          </div>
+          <a href="${req.body.guideUrl}" style="display:inline-block;background:#09C8B8;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;margin:8px 0">
+            Download ${guideTitle} →
+          </a>
+          <hr style="border:none;border-top:1px solid #DEE3DF;margin:24px 0">
+          <p style="font-size:13px;color:#848B8C">You've also been added to our newsletter. We'll send you health tips and new guide releases. <a href="${process.env.CLIENT_URL}/api/v1/newsletter/unsubscribe" style="color:#09C8B8">Unsubscribe anytime</a>.</p>
+        </div>
+      </div>
+      </body></html>
+    `
+  });
+
+  sendSuccess(res, {
+    statusCode: 201,
+    message: 'Download tracked successfully',
+    data: {
+      id:       download._id,
+      guideUrl: req.body.guideUrl
+    }
+  });
+});
+
+exports.getDownloadStats = asyncHandler(async (req, res) => {
+  const stats = await Download.aggregate([
+    {
+      $group: {
+        _id:   '$guideId',
+        title: { $first: '$guideTitle' },
+        count: { $sum: 1 },
+        lastDownloaded: { $max: '$createdAt' }
+      }
+    },
+    { $sort: { count: -1 } }
+  ]);
+
+  const total = await Download.countDocuments();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayCount = await Download.countDocuments({ createdAt: { $gte: today } });
+
+  sendSuccess(res, {
+    message: 'Download stats fetched',
+    data: { stats, total, todayCount }
+  });
 });

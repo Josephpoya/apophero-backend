@@ -97,4 +97,46 @@ router.delete('/guides/:publicId', asyncHandler(async (req, res) => {
   );
   sendSuccess(res, { message: 'Guide deleted' });
 }));
+
+// GET /api/v1/admin/downloads — all download records
+router.get('/downloads', asyncHandler(async (req, res) => {
+  const { Download } = require('../models/index');
+  const { getPagination, buildMeta, sendSuccess } = require('../utils/helpers');
+  const { page, limit, skip } = getPagination(req.query, 20);
+
+  const [downloads, total] = await Promise.all([
+    Download.find().sort('-createdAt').skip(skip).limit(limit).lean(),
+    Download.countDocuments()
+  ]);
+
+  sendSuccess(res, {
+    message: 'Downloads fetched',
+    data: { downloads },
+    meta: buildMeta({ page, limit, total })
+  });
+}));
+
+// GET /api/v1/admin/downloads/stats — aggregated stats
+router.get('/downloads/stats', asyncHandler(async (req, res) => {
+  const { Download } = require('../models/index');
+  const { sendSuccess } = require('../utils/helpers');
+
+  const [stats, total] = await Promise.all([
+    Download.aggregate([
+      { $group: {
+        _id:   '$guideId',
+        title: { $first: '$guideTitle' },
+        count: { $sum: 1 },
+        lastDownloaded: { $max: '$createdAt' }
+      }},
+      { $sort: { count: -1 } }
+    ]),
+    Download.countDocuments()
+  ]);
+
+  sendSuccess(res, {
+    message: 'Stats fetched',
+    data: { stats, total }
+  });
+}));
 module.exports = router;
