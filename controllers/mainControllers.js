@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════
 //  MAIN CONTROLLERS
 // ═══════════════════════════════════════════
-const { Contact, Newsletter, Booking, Blog } = require('../models/index');
+const { Contact, Newsletter, Booking, Blog, Download } = require('../models/index');
 const AppError   = require('../utils/AppError');
 const { asyncHandler, sendSuccess, getPagination, buildMeta, generateRef } = require('../utils/helpers');
 const { sendEmail } = require('../utils/email');
