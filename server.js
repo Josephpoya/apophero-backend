@@ -47,6 +47,7 @@ const downloadRoutes = require('./routes/downloadRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
+app.use('/api/v1/downloads', downloadRoutes);
 
 // ── Security Middleware ────────────────────
 app.use(helmet({
