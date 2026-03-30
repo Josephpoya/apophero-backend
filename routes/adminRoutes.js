@@ -9,30 +9,6 @@ const ctrl    = require('../controllers/adminController');
 const { protect, restrictTo } = require('../middleware/auth');
 const { mongoIdRule, validate } = require('../middleware/validators');
 
-// ── ONE-TIME ADMIN SETUP — DELETE AFTER USE ──
-const setupLimiter = require('express-rate-limit')({ windowMs: 60*60*1000, max: 3 });
-router.post('/setup-admin', setupLimiter, async (req, res) => {
-  try {
-    if (req.body.secret !== 'apophero-setup-2026') {
-      return res.status(403).json({ success:false, message:'Invalid secret' });
-    }
-    const User = require('../models/User');
-    const { Blog } = require('../models/index');
-    let admin = await User.findOne({ email: 'admin@apopherohealth.com' });
-    if (admin) {
-      admin.password = 'Apophero2026'; admin.role = 'admin'; admin.isActive = true;
-      await admin.save();
-      return res.json({ success:true, message:'Admin password reset' });
-    }
-    admin = await User.create({
-      name:'Admin', email:'admin@apopherohealth.com',
-      password:'Apophero2026', role:'admin', isActive:true, isVerified:true
-    });
-    return res.json({ success:true, message:'Admin created', id: admin._id });
-  } catch(err) {
-    return res.status(500).json({ success:false, message:err.message });
-  }
-});
 
 // Lock every admin route
 router.use(protect, restrictTo('admin'));
