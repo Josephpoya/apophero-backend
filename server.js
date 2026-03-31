@@ -43,6 +43,7 @@ const newsletterRoutes   = require('./routes/newsletterRoutes');
 const bookingRoutes      = require('./routes/bookingRoutes');
 const blogRoutes         = require('./routes/blogRoutes');
 const adminRoutes        = require('./routes/adminRoutes');
+const downloadRoutes = require('./routes/downloadRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
